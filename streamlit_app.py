@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import json
+from io import StringIO, BytesIO
 import os
 import re
 import time
@@ -21,12 +22,279 @@ if not os.path.exists(BASE_DATA_DIR):
 # Create directories for images if they don't exist
 team_logos_dir = os.path.join(BASE_DATA_DIR, 'team_logos')
 player_photos_dir = os.path.join(BASE_DATA_DIR, 'player_photos')
+sprites_dir = os.path.join(BASE_DATA_DIR, 'sprites')  # For sprites
 
 if not os.path.exists(team_logos_dir):
     os.makedirs(team_logos_dir)
 
 if not os.path.exists(player_photos_dir):
     os.makedirs(player_photos_dir)
+
+if not os.path.exists(sprites_dir):
+    os.makedirs(sprites_dir)
+
+# --- Blood Bowl Races and Positions ---
+BLOOD_BOWL_RACES = [
+    # Fill in with actual Blood Bowl races
+    "Amazon",
+    "Black Orc",
+    "Chaos Chosen",
+    "Chaos Dwarf",
+    "Chaos Renegade",
+    "Dark Elf",
+    "Dwarf",
+    "Elven Union",
+    "Gnome",
+    "Goblin",
+    "Halfling",
+    "High Elf",
+    "Human",
+    "Imperial Nobility",
+    "Khorne",
+    "Lizardmen",
+    "Necromantic Horror",
+    "Norse",
+    "Nurgle",
+    "Ogre",
+    "Old World Alliance",
+    "Orc",
+    "Shambling Undead",
+    "Skaven",
+    "Snotling",
+    "Tomb Kings",
+    "Underworld Denizens",
+    "Vampire",
+    "Wood Elf"
+    # Add other races as needed
+]
+
+RACE_POSITIONS = {
+    # Fill in with actual positions for each race
+    "Amazon": [
+        "Eagle Warrior Linewoman",
+        "Python Warrior Thrower",
+        "Piranha Warrior Blitzer",
+        "Jaguar Warrior Blocker"
+    ],
+    "Black Orc": [
+        "Goblin Bruiser Lineman",
+        "Black Orc",
+        "Trained Troll"
+    ],
+    "Chaos Chosen": [
+        "Beastman Runner Lineman",
+        "Chosen Blocker",
+        "Chaos Troll",
+        "Chaos Ogre",
+        "Minotaur"
+    ],
+    "Chaos Dwarf": [
+        "Hobgoblin Lineman",
+        "Chaos Dwarf Blocker",
+        "Bull Centaur Blitzer",
+        "Enslaved Minotaur"
+    ],
+    "Chaos Renegade": [
+        "Renegade Human Lineman",
+        "Renegade Human Thrower",
+        "Renegade Goblin",
+        "Renegade Orc",
+        "Renegade Skaven",
+        "Renegade Dark Elf",
+        "Renegade Troll",
+        "Renegade Ogre",
+        "Renegade Minotaur",
+        "Renegade Rat Ogre"
+    ],
+    "Dark Elf": [
+        "Dark Elf Lineman",
+        "Runner",
+        "Blitzer",
+        "Assassin",
+        "Witch Elf"
+    ],
+    "Dwarf": [
+        "Dwarf Blocker Lineman",
+        "Dwarf Runner",
+        "Dwarf Blitzer",
+        "Troll Slayer",
+        "Deathroller"
+    ],
+    "Elven Union": [
+        "Lineman",
+        "Thrower",
+        "Catcher",
+        "Blitzer"
+    ],
+    "Gnome": [
+        "Gnome Lineman",
+        "Gnome Beastmaster",
+        "Gnome Illusionist",
+        "Woodland Fox",
+        "Altern Forest Treeman"
+    ],
+    "Goblin": [
+        "Goblin Lineman",
+        "Bomma",
+        "Looney",
+        "Fanatic",
+        "Pogoer",
+        "'Ooligan",
+        "Doom Diver"
+    ],
+    "Halfling": [
+        "Halfling Hopeful Lineman",
+        "Halfling Hefty",
+        "Halfling Catcher",
+        "Altern Forest Treeman"
+    ],
+    "High Elf": [
+        "Lineman",
+        "Thrower",
+        "Catcher",
+        "Blitzer"
+    ],
+    "Human": [
+        "Human Lineman",
+        "Thrower",
+        "Catcher",
+        "Blitzer",
+        "Halfling Hopeful",
+        "Ogre"
+    ],
+    "Imperial Nobility": [
+        "Imperial Retainer Lineman",
+        "Imperial Thrower",
+        "Noble Blitzer",
+        "Bodyguard",
+        "Ogre"
+    ],
+    "Khorne": [
+        "Bloodborn Marauder Lineman",
+        "Khorngor",
+        "Bloodseeker",
+        "Bloodspawn"
+    ],
+    "Lizardmen": [
+        "Skink Runner Lineman",
+        "Chameleon Skink",
+        "Saurus Blocker",
+        "Kroxigor"
+    ],
+    "Necromantic Horror": [
+        "Zombie Lineman",
+        "Ghoul Runner",
+        "Wraith",
+        "Werewolf",
+        "Flesh Golem"
+    ],
+    "Norse": [
+        "Norse Raider Lineman",
+        "Beer Boar",
+        "Norse Berserker",
+        "Valkyrie",
+        "Ulfwerener"
+        "Yhetee"
+    ],
+    "Nurgle": [
+        "Rotter Lineman",
+        "Pestigor",
+        "Bloater",
+        "Rotspawn"
+    ],
+    "Ogre": [
+        "Gnoblar Lineman",
+        "Ogre Runt Punter",
+        "Ogre Blocker"
+    ],
+    "Old World Alliance": [
+        "Human Lineman",
+        "Human Thrower",
+        "Human Catcher",
+        "Human Blitzer",
+        "Dwarf Blocker",
+        "Dwarf Runner",
+        "Dwarf Blitzer",
+        "Dwarf Troll Slayer",
+        "Halfling Hopeful",
+        "Ogre"
+        "Altern Forest Treeman"
+    ],
+    "Orc": [
+        "Orc Lineman",
+        "Thrower",
+        "Blitzer",
+        "Big 'Un Blocker",
+        "Goblin",
+        "Untrained Troll"
+    ],
+    "Shambling Undead": [
+        "Skeleton Lineman",
+        "Zombie Lineman",
+        "Ghoul Runner",
+        "Wight Blitzer",
+        "Mummy",
+    ],
+    "Skaven": [
+        "Skaven Clanrat Lineman",
+        "Thrower",
+        "Gutter Runner",
+        "Blitzer",
+        "Rat Ogre"
+    ],
+    "Snotling": [
+        "Snotling Lineman",
+        "Fungus Flinga",
+        "Fun-Hoppa",
+        "Stilty Runna",
+        "Pump Wagon",
+        "Trained Troll"
+    ],
+    "Tomb Kings": [
+        "Skeleton Lineman",
+        "Anointed Thrower",
+        "Anointed Blitzer",
+        "Tomb Guardian"
+    ],
+    "Underworld Denizens": [
+        "Underworld Goblin Lineman",
+        "Underworld Snottling",
+        "Skaven Clanrat",
+        "Skaven Thrower",
+        "Gutter Runner",
+        "Skaven Blitzer",
+        "Underworld Troll",
+        "Mutant Rat Ogre"
+    ],
+    "Vampire": [
+        "Thrall Lineman",
+        "Vampire Runner",
+        "Vampire Thrower",
+        "Vampire Blitzer",
+        "Vargheist"
+    ],
+    "Wood Elf": [
+        "Wood Elf Lineman",
+        "Thrower",
+        "Catcher",
+        "Wardancer",
+        "Loren Forest Treeman"
+    ]
+    # Add positions for other races
+}
+
+# --- Function to gather all the relevant data ---
+def gather_all_data():
+    data = {
+        'league_info': st.session_state.league_info,
+        'team_profiles': st.session_state.team_profiles,
+        'player_profiles': st.session_state.player_profiles,
+        'matches': st.session_state.matches,
+        'injuries': st.session_state.injuries,
+        'narratives': st.session_state.narratives,
+        'additional_details': st.session_state.get('additional_details', '')
+    }
+    return data
 
 # --- Function to Validate Filenames ---
 def is_valid_filename(filename):
@@ -58,7 +326,6 @@ def load_data_from_file(filename):
             data = json.load(f)
             return data
     except Exception as e:
-        # st.error(f"Error loading JSON file: {e}")
         return None
 
 def save_team_profiles(data, filename='team_profiles.json'):
@@ -161,7 +428,7 @@ with tab2:
     with st.expander("Add New Team Profile", expanded=True):
         with st.form("team_profile_form"):
             team_name = st.text_input("Team Name", help="Enter the team's name.")
-            team_race = st.text_input("Team Race", help="Enter the race of the team.")
+            team_race = st.selectbox("Team Race", options=BLOOD_BOWL_RACES, help="Select the race of the team.")
             coach_name = st.text_input("Coach Name", help="Enter the coach's name.")
             team_history = st.text_area("Team History", help="Provide a brief history of the team.")
             achievements = st.text_area("Achievements", help="List the team's achievements.")
@@ -234,7 +501,7 @@ with tab2:
         st.subheader(f"Edit Team '{team['team_name']}'")
         with st.form("edit_team_form"):
             team_name = st.text_input("Team Name", value=team['team_name'])
-            team_race = st.text_input("Team Race", value=team['team_race'])
+            team_race = st.selectbox("Team Race", options=BLOOD_BOWL_RACES, index=BLOOD_BOWL_RACES.index(team['team_race']))
             coach_name = st.text_input("Coach Name", value=team['coach_name'])
             team_history = st.text_area("Team History", value=team['team_history'])
             achievements = st.text_area("Achievements", value=team['achievements'])
@@ -279,10 +546,19 @@ with tab3:
             team_names = [team['team_name'] for team in st.session_state.team_profiles]
             if team_names:
                 team_name = st.selectbox("Team Name", options=team_names, help="Select the player's team.")
+                # Retrieve the race of the selected team
+                team_race = next((team['team_race'] for team in st.session_state.team_profiles if team['team_name'] == team_name), None)
+                if team_race and team_race in RACE_POSITIONS:
+                    positions = RACE_POSITIONS[team_race]
+                    position = st.selectbox("Position", options=positions, help="Select the player's position.")
+                else:
+                    st.error("Positions not available for this team's race.")
+                    position = st.text_input("Position", help="Enter the player's position.")
             else:
                 st.warning("No teams available. Please add a team first.")
                 team_name = ''
-            position = st.text_input("Position", help="Enter the player's position.")
+                position = st.text_input("Position", help="Enter the player's position.")
+                team_race = ''
             bio = st.text_area("Player Bio", help="Provide a brief bio of the player.")
             career_highlights = st.text_area("Career Highlights", help="List the player's career highlights.")
             player_photo = st.file_uploader("Upload Player Photo", type=["png", "jpg", "jpeg"], key="player_photo_upload")
@@ -302,6 +578,8 @@ with tab3:
                     errors.append("Player Name is required.")
                 if not team_name.strip():
                     errors.append("Team Name is required.")
+                if not position.strip():
+                    errors.append("Position is required.")
                 if errors:
                     for error in errors:
                         st.error(error)
@@ -320,6 +598,7 @@ with tab3:
                     player_profile = {
                         'player_name': player_name.strip(),
                         'team_name': team_name.strip(),
+                        'team_race': team_race.strip(),
                         'position': position.strip(),
                         'bio': bio.strip(),
                         'career_highlights': career_highlights.strip(),
@@ -342,17 +621,27 @@ with tab3:
         st.subheader("Existing Player Profiles")
         for idx, player in enumerate(st.session_state.player_profiles):
             st.markdown(f"### {player['player_name']} ({player['position']})")
-            if player['player_photo']:
-                st.image(player['player_photo'], width=150)
-            st.write(f"**Team:** {player['team_name']}")
-            st.write(f"**Bio:** {player['bio']}")
-            st.write(f"**Career Highlights:** {player['career_highlights']}")
-            st.write(f"**Statistics:**")
-            st.write(f"- Matches Played: {player['stats']['matches_played']}")
-            st.write(f"- Touchdowns: {player['stats']['touchdowns']}")
-            st.write(f"- Interceptions: {player['stats']['interceptions']}")
-            st.write(f"- Injuries Caused: {player['stats']['injuries_caused']}")
-            st.write(f"- MVP Awards: {player['stats']['mvp_awards']}")
+            col1, col2 = st.columns([1, 3])
+            with col1:
+                # Display player photo if available
+                if player['player_photo']:
+                    st.image(player['player_photo'], width=150, caption="Player Photo")
+                # Display sprite representation
+                sprite_path = os.path.join(sprites_dir, player['team_race'], f"{player['position']}.png")
+                if os.path.exists(sprite_path):
+                    st.image(sprite_path, width=28)
+                else:
+                    st.warning("Sprite not found for this player.")
+            with col2:
+                st.write(f"**Team:** {player['team_name']}")
+                st.write(f"**Bio:** {player['bio']}")
+                st.write(f"**Career Highlights:** {player['career_highlights']}")
+                st.write(f"**Statistics:**")
+                st.write(f"- Matches Played: {player['stats']['matches_played']}")
+                st.write(f"- Touchdowns: {player['stats']['touchdowns']}")
+                st.write(f"- Interceptions: {player['stats']['interceptions']}")
+                st.write(f"- Injuries Caused: {player['stats']['injuries_caused']}")
+                st.write(f"- MVP Awards: {player['stats']['mvp_awards']}")
 
             # Edit and Delete Buttons
             col1, col2 = st.columns(2)
@@ -378,8 +667,25 @@ with tab3:
         with st.form("edit_player_profile_form"):
             player_name = st.text_input("Player Name", value=player['player_name'])
             team_names = [team['team_name'] for team in st.session_state.team_profiles]
-            team_name = st.selectbox("Team Name", options=team_names, index=team_names.index(player['team_name']))
-            position = st.text_input("Position", value=player['position'])
+            if team_names:
+                team_name = st.selectbox("Team Name", options=team_names, index=team_names.index(player['team_name']))
+                # Retrieve the race of the selected team
+                team_race = next((team['team_race'] for team in st.session_state.team_profiles if team['team_name'] == team_name), None)
+                if team_race and team_race in RACE_POSITIONS:
+                    positions = RACE_POSITIONS[team_race]
+                    if player['position'] in positions:
+                        position_index = positions.index(player['position'])
+                    else:
+                        position_index = 0
+                    position = st.selectbox("Position", options=positions, index=position_index, help="Select the player's position.")
+                else:
+                    st.error("Positions not available for this team's race.")
+                    position = st.text_input("Position", value=player['position'], help="Enter the player's position.")
+            else:
+                st.warning("No teams available. Please add a team first.")
+                team_name = ''
+                position = st.text_input("Position", value=player['position'], help="Enter the player's position.")
+                team_race = ''
             bio = st.text_area("Player Bio", value=player['bio'])
             career_highlights = st.text_area("Career Highlights", value=player['career_highlights'])
             player_photo = st.file_uploader("Upload New Player Photo (optional)", type=["png", "jpg", "jpeg"], key="edit_player_photo_upload")
@@ -408,6 +714,7 @@ with tab3:
                 updated_player = {
                     'player_name': player_name.strip(),
                     'team_name': team_name.strip(),
+                    'team_race': team_race.strip(),
                     'position': position.strip(),
                     'bio': bio.strip(),
                     'career_highlights': career_highlights.strip(),
@@ -770,138 +1077,76 @@ with tab7:
 
         generate_prompt = st.form_submit_button("Generate GPT Prompt")
 
-        if generate_prompt:
-            # Validate inputs
-            required_fields = [reporter_name, reporter_description, tone_style, format_length]
-            if all(required_fields):
-                # Formatting Functions
-                def format_league_info():
-                    league_info = st.session_state.league_info
-                    if league_info:
-                        return f"**League Name:** {league_info.get('league_name')}\n\n**League Description:**\n{league_info.get('league_description')}"
-                    else:
-                        return "No league information provided."
+    if generate_prompt:
+        # Validate inputs
+        required_fields = [reporter_name, reporter_description, tone_style, format_length]
+        if all(required_fields):
+            # Formatting Functions
+            # ... (existing formatting functions)
 
-                def format_team_profiles():
-                    teams = st.session_state.team_profiles
-                    if teams:
-                        team_str = ""
-                        for idx, team in enumerate(teams):
-                            team_str += f"**Team {idx + 1}:** {team['team_name']} ({team['team_race']})\n"
-                            team_str += f"- Coach: {team['coach_name']}\n"
-                            team_str += f"- History: {team['team_history']}\n"
-                            team_str += f"- Achievements: {team['achievements']}\n\n"
-                        return team_str
-                    else:
-                        return "No team profiles available."
-
-                def format_player_profiles():
-                    players = st.session_state.player_profiles
-                    if players:
-                        player_str = ""
-                        for idx, player in enumerate(players):
-                            player_str += f"**Player {idx + 1}:** {player['player_name']} ({player['position']}) for {player['team_name']}\n"
-                            player_str += f"- Bio: {player['bio']}\n"
-                            player_str += f"- Career Highlights: {player['career_highlights']}\n"
-                            player_str += f"- Statistics:\n"
-                            player_str += f"  - Matches Played: {player['stats']['matches_played']}\n"
-                            player_str += f"  - Touchdowns: {player['stats']['touchdowns']}\n"
-                            player_str += f"  - Interceptions: {player['stats']['interceptions']}\n"
-                            player_str += f"  - Injuries Caused: {player['stats']['injuries_caused']}\n"
-                            player_str += f"  - MVP Awards: {player['stats']['mvp_awards']}\n\n"
-                        return player_str
-                    else:
-                        return "No player profiles available."
-
-                def format_matches():
-                    matches = st.session_state.matches
-                    if matches:
-                        match_str = ""
-                        for idx, match in enumerate(matches):
-                            match_str += f"**Match {idx + 1}:** {match['team_a_name']} vs {match['team_b_name']} on {match['match_date']}\n"
-                            match_str += f"- Final Score: {match['final_score']}\n"
-                            match_str += f"- Key Events: {match['key_events']}\n\n"
-                        return match_str
-                    else:
-                        return "No match reports available."
-
-                def format_injuries():
-                    injuries = st.session_state.injuries
-                    if injuries:
-                        injury_str = ""
-                        for idx, injury in enumerate(injuries):
-                            injury_str += f"**Injury {idx + 1}:** {injury['player_name']} from {injury['team_name']}\n"
-                            injury_str += f"- Injury Type: {injury['injury_type']}\n"
-                            injury_str += f"- Description: {injury['injury_description']}\n"
-                            injury_str += f"- Time Out: {injury['time_out']}, Expected Return: {injury['expected_return']}\n\n"
-                        return injury_str
-                    else:
-                        return "No injury reports available."
-
-                def format_narratives():
-                    narratives = st.session_state.narratives
-                    if narratives:
-                        narrative_str = ""
-                        for idx, narrative in enumerate(narratives):
-                            narrative_str += f"**Storyline {idx + 1}:** {narrative['storyline_title']}\n"
-                            narrative_str += f"- Description: {narrative['description']}\n"
-                            narrative_str += f"- Teams/Players Involved: {narrative['teams_or_players_involved']}\n"
-                            narrative_str += f"- Recent Developments: {narrative['recent_developments']}\n\n"
-                        return narrative_str
-                    else:
-                        return "No narratives provided."
-
-                # Compile the GPT prompt
-                prompt = f"""
+            # Compile the GPT prompt (as modified)
+            prompt = f"""
 You are a seasoned sports journalist in the fantastical and brutal world of Blood Bowl. Your task is to write a report for the **{st.session_state.league_info.get('league_name', 'Unknown League')}**. The report should be engaging and entertaining for both players in the league and fans of Blood Bowl in general. Assume the audience does not need an understanding of Blood Bowl mechanics to enjoy the content.
 
-**Please use the following information to craft your report:**
+**Instructions:**
 
-1. **League Information:**
+- You are provided with a data file named `blood_bowl_data.json` containing all the relevant information about the league, teams, players, matches, injuries, narratives, and additional details.
+- Use the data in this file to craft a comprehensive and engaging report.
+- Focus on storytelling, highlighting key events, player performances, and interesting narratives.
+- Incorporate the tone and style specified.
 
-{format_league_info()}
+**Reporter Character:**
 
-2. **Team Profiles:**
-
-{format_team_profiles()}
-
-3. **Player Profiles:**
-
-{format_player_profiles()}
-
-4. **Match Reports:**
-
-{format_matches()}
-
-5. **Injury Reports:**
-
-{format_injuries()}
-
-6. **Narratives and Lore:**
-
-{format_narratives()}
-
-7. **Additional Narrative and Lore:**
-
-{additional_details}
-
-8. **Reporter Character:**
 - **Character Name:** {reporter_name}
 - **Character Description:** {reporter_description}
 
-9. **Tone and Style:** {tone_style}
+**Tone and Style:** {tone_style}
 
-10. **Format and Length:** {format_length}
+**Format and Length:** {format_length}
 
 ---
 
 **Now, please write the report accordingly.**
 """
-                st.subheader("Generated GPT Prompt")
-                st.text_area("GPT Prompt", value=prompt.strip(), height=500)
-                st.markdown("**Copy the prompt above and paste it into your GPT interface to generate the report.**")
-            else:
-                st.error("Please fill in all required fields in the sidebar.")
+            st.subheader("Generated GPT Prompt")
+            st.text_area("GPT Prompt", value=prompt.strip(), height=300)
+
+            # Gather all data
+            data = gather_all_data()
+
+            # Serialize data to JSON
+            data_json = json.dumps(data, indent=4)
+
+            # Provide a download link for the data file
+            st.subheader("Download Data File")
+            st.download_button(
+                label="Download Data JSON File",
+                data=data_json,
+                file_name="blood_bowl_data.json",
+                mime="application/json"
+            )
+
+
+            # Provide a download link for the prompt
+            st.subheader("Download GPT Prompt")
+            prompt_file = StringIO(prompt.strip())
+            st.download_button(
+                label="Download GPT Prompt",
+                data=prompt.strip(),
+                file_name="blood_bowl_prompt.txt",
+                mime="text/plain"
+            )
+
+
+            st.markdown("**Instructions:**")
+            st.markdown("""
+1. Download both the **GPT Prompt** and **Data JSON File** using the buttons above.
+2. In your GPT interface, upload the `blood_bowl_data.json` file if possible.
+3. Copy and paste the prompt into the GPT interface.
+4. Generate the report.
+""")
+        else:
+            st.error("Please fill in all required fields in the sidebar.")
 
 # --- Help Tab ---
 with tab8:
